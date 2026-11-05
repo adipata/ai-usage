@@ -23,7 +23,7 @@ struct AccountsView: View {
                         }
                     }
                 } header: {
-                    Text("Claude")
+                    Text("Web accounts")
                 } footer: {
                     Text("You sign in on the provider's own page. The session stays on this device and is used to read your usage.")
                 }

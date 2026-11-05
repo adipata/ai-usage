@@ -7,6 +7,7 @@ import WebKit
 enum WebSite: String, CaseIterable, Identifiable {
     case claudeAI
     case claudePlatform
+    case mistral
 
     var id: String { rawValue }
 
@@ -14,6 +15,7 @@ enum WebSite: String, CaseIterable, Identifiable {
         switch self {
         case .claudeAI: "claude.ai"
         case .claudePlatform: "platform.claude.com"
+        case .mistral: "admin.mistral.ai"
         }
     }
 
@@ -21,6 +23,8 @@ enum WebSite: String, CaseIterable, Identifiable {
         switch self {
         case .claudeAI: URL(string: "https://claude.ai/login")!
         case .claudePlatform: URL(string: "https://platform.claude.com/login")!
+        // Redirects to Mistral's login page, then back to the console.
+        case .mistral: URL(string: "https://admin.mistral.ai")!
         }
     }
 
@@ -29,6 +33,7 @@ enum WebSite: String, CaseIterable, Identifiable {
         switch self {
         case .claudeAI: "claude.ai"
         case .claudePlatform: "claude.com"
+        case .mistral: "mistral.ai"
         }
     }
 

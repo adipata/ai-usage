@@ -1,6 +1,6 @@
 # AI Usage — iOS Dashboard Spec
 
-Status: Draft v0.2 (2026-11-05): OpenAI dropped, Claude implemented (see §8)
+Status: Draft v0.3 (2026-11-05): OpenAI dropped, Claude (§8) and Mistral (§9) implemented
 Owner: Adrian Pata
 
 ## 1. Goal
@@ -11,7 +11,7 @@ A native iOS app that shows, on one screen, how much of each AI provider's quota
 |---|---|---|
 | **Claude (subscription)** | "This week" % used + reset, model-specific weekly limit (e.g. Fable) % + reset | claude.ai → Settings → Usage |
 | **Claude (API)** | Organization credits, Spend this month, Token volume | platform.claude.com → Dashboard |
-| **Mistral** | Subscription and billing, usage/spend, credits | admin.mistral.ai → Subscription |
+| **Mistral** | Included monthly allowances: API usage and Vibe Code usage (used / limit in €, reset) | admin.mistral.ai → Subscription |
 | **OpenRouter** | Credit balance, total usage, per-key limits | openrouter.ai → Credits |
 
 Non-goals for v1: OpenAI (dropped), sending prompts or chatting, team administration, Android, and a web app.
@@ -162,7 +162,7 @@ One adapter per row group in §2.1. Each adapter decodes into private DTOs, then
 **Scope and product**
 1. Is this a **personal-use** app (sideloaded / TestFlight only) or meant for the **App Store**? The answer decides how acceptable Tier B (web-session scraping) is and how much onboarding polish is needed.
 2. Exactly which Claude numbers matter? Only the claude.ai plan limits (5‑hour session and weekly %), the API credit balance, monthly API spend, or all of them?
-3. For Mistral, what exactly should be shown from the Subscription page: plan name and renewal date, current-month spend, remaining credits, or Le Chat Pro usage? Are you on a Le Chat subscription, API "La Plateforme" pay-as-you-go, or both?
+3. ~~Mistral scope~~ Resolved: the two included monthly allowances (API and Vibe Code) from the Subscription page.
 4. ~~OpenAI scope~~ Resolved: OpenAI is dropped.
 5. Do you need **multiple accounts per provider** (for example personal and company orgs) in v1?
 6. Should amounts be shown in the provider's currency (USD, EUR for Mistral), or converted to one currency?
@@ -214,4 +214,21 @@ One adapter per row group in §2.1. Each adapter decodes into private DTOs, then
 21. Is scraping the platform dashboard text acceptable, or should spend and tokens come from the official Admin API (cost report / usage report) using an Admin key? That would be more robust, but the credit balance would still need the dashboard.
 22. If you belong to several platform organizations, which one should be shown? Currently it is whichever the dashboard opens by default.
 23. Should the current 5‑hour session also be shown? It is already parsed.
+
+## 9. Mistral implementation (v1, done)
+
+| Metric | How it is read |
+|---|---|
+| Included API usage (used, limit, reset) | admin.mistral.ai Subscription page, rendered in a hidden page. In `document.body.innerText`, find the "Included API usage" heading, then take the next two currency amounts (used, limit) and the "Resets …" line, stopping at the next heading |
+| Included Vibe Code usage | Same, under the "Included Vibe Code usage" heading |
+
+- The page URL is a guess (`/organization/subscription`). If the allowances don't show up there within about 3 seconds, the app follows the console's "Subscription" navigation link once.
+- If the page redirects to another host (Mistral's login), the card shows "Sign in to admin.mistral.ai".
+- Amounts are kept as displayed (e.g. "€0.1 / €25.5"), and parsed into numbers only to draw the bar. Both "1,234.5" and "25,5" formats are handled.
+- Files: `ai-usage/Mistral/` (models, parser, service, card). Shared web helpers are in `ai-usage/Web/WebPageTools.swift`.
+
+**Open questions for Mistral:**
+24. What is the real URL of the Subscription page? Replace the guess once it's known.
+25. Can sign-in finish inside the app's web view? (For example, if it uses Google or a passkey, or a magic link that opens in Safari.)
+26. Is "Resets in 25 days" enough, or should the card show a date ("1 Dec")? It's always the 1st of next month, so it could be computed.
 

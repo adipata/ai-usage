@@ -6,18 +6,26 @@ import Observation
 final class UsageStore {
     var claudeAI: SourceState<ClaudeAIUsage>
     var platform: SourceState<PlatformUsage>
+    var mistral: SourceState<MistralUsage>
     private(set) var isRefreshing = false
 
     let claudeService = ClaudeWebService()
+    let mistralService = MistralWebService()
 
-    var rawResponses: [String: String] { claudeService.lastRaw }
+    var rawResponses: [String: String] {
+        var all = claudeService.lastRaw
+        all["mistral subscription"] = mistralService.lastRaw
+        return all
+    }
 
     private static let claudeAIKey = "cache.claudeAI"
     private static let platformKey = "cache.platform"
+    private static let mistralKey = "cache.mistral"
 
     init() {
         claudeAI = Self.load(Self.claudeAIKey) ?? SourceState()
         platform = Self.load(Self.platformKey) ?? SourceState()
+        mistral = Self.load(Self.mistralKey) ?? SourceState()
     }
 
     func refresh() async {
@@ -27,6 +35,7 @@ final class UsageStore {
 
         await refreshClaudeAI()
         await refreshPlatform()
+        await refreshMistral()
     }
 
     func refreshClaudeAI() async {
@@ -49,14 +58,26 @@ final class UsageStore {
         Self.save(platform, Self.platformKey)
     }
 
+    func refreshMistral() async {
+        do {
+            mistral = SourceState(value: try await mistralService.fetchUsage(), fetchedAt: .now)
+        } catch {
+            mistral.error = error.localizedDescription
+            mistral.needsSignIn = FetchError.isNotSignedIn(error)
+        }
+        Self.save(mistral, Self.mistralKey)
+    }
+
     func signOut(_ site: WebSite) async {
         await site.signOut()
         switch site {
         case .claudeAI: claudeAI = SourceState(needsSignIn: true)
         case .claudePlatform: platform = SourceState(needsSignIn: true)
+        case .mistral: mistral = SourceState(needsSignIn: true)
         }
         Self.save(claudeAI, Self.claudeAIKey)
         Self.save(platform, Self.platformKey)
+        Self.save(mistral, Self.mistralKey)
     }
 
     // MARK: Cache

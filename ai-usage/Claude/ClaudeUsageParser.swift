@@ -119,6 +119,6 @@ enum ClaudeUsageParser {
     }
 
     static func snippet(_ text: String) -> String {
-        String(text.trimmingCharacters(in: .whitespacesAndNewlines).prefix(120))
+        WebPageTools.snippet(text)
     }
 }

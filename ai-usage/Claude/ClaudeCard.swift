@@ -8,7 +8,7 @@ struct ClaudeCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            CardHeader(title: "Claude", systemImage: "sparkle", tint: .orange,
+            CardHeader(title: "Claude", systemImage: "sparkle", tint: Color(red: 0.85, green: 0.47, blue: 0.34),
                        updatedAt: [claudeAI.fetchedAt, platform.fetchedAt].compactMap { $0 }.min())
 
             SectionLabel("claude.ai")
@@ -61,6 +61,15 @@ struct CardHeader: View {
     }
 }
 
+/// Bar colour shared by all cards: normal below 70%, orange below 90%, red above.
+func usageColor(percent: Double) -> Color {
+    switch percent {
+    case ..<70: .accentColor
+    case ..<90: .orange
+    default: .red
+    }
+}
+
 struct SectionLabel: View {
     let text: String
     init(_ text: String) { self.text = text }
@@ -83,7 +92,7 @@ struct LimitRow: View {
                 .lineLimit(1)
                 .frame(width: 78, alignment: .leading)
             ProgressView(value: min(max(limit.percentUsed, 0), 100), total: 100)
-                .tint(color)
+                .tint(usageColor(percent: limit.percentUsed))
             Text("\(Int(limit.percentUsed.rounded()))%")
                 .font(.subheadline.monospacedDigit().weight(.semibold))
                 .frame(width: 40, alignment: .trailing)
@@ -93,14 +102,6 @@ struct LimitRow: View {
                 .frame(width: 64, alignment: .trailing)
         }
         .accessibilityElement(children: .combine)
-    }
-
-    private var color: Color {
-        switch limit.percentUsed {
-        case ..<70: .accentColor
-        case ..<90: .orange
-        default: .red
-        }
     }
 
     /// "Sat 7:00 PM", matching how claude.ai shows resets.

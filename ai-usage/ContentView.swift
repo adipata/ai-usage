@@ -13,7 +13,10 @@ struct ContentView: View {
                     ClaudeCard(claudeAI: store.claudeAI, platform: store.platform) { site in
                         loginSite = site
                     }
-                    // Mistral and OpenRouter cards go here.
+                    MistralCard(state: store.mistral) { site in
+                        loginSite = site
+                    }
+                    // OpenRouter card goes here.
                 }
                 .padding(16)
             }
@@ -36,7 +39,13 @@ struct ContentView: View {
                 }
             }
         }
-        .background { HiddenWebPages(pages: [store.claudeService.claudeAIPage, store.claudeService.platformPage]) }
+        .background {
+            HiddenWebPages(pages: [
+                store.claudeService.claudeAIPage,
+                store.claudeService.platformPage,
+                store.mistralService.page,
+            ])
+        }
         .task { await store.refresh() }
         .sheet(item: $loginSite) { site in
             WebLoginSheet(site: site) {

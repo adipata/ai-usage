@@ -46,6 +46,10 @@ struct AccountsView: View {
                 }
             }
         }
+        #if os(macOS)
+        // macOS sheets size to their content, and a List has no intrinsic size.
+        .frame(minWidth: 460, minHeight: 420)
+        #endif
     }
 }
 

@@ -26,6 +26,10 @@ struct WebLoginSheet: View {
                     }
                 }
         }
+        #if os(macOS)
+        // macOS sheets size to their content, and a WebView has no intrinsic size.
+        .frame(minWidth: 520, idealWidth: 600, minHeight: 680, idealHeight: 760)
+        #endif
         .onAppear {
             _ = page.load(URLRequest(url: site.loginURL))
         }

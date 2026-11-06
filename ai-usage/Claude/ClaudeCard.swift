@@ -105,7 +105,7 @@ struct LimitRow: View {
     }
 
     /// "Sat 7:00 PM", matching how claude.ai shows resets.
-    static func resetText(_ date: Date) -> String {
+    nonisolated static func resetText(_ date: Date) -> String {
         date.formatted(.dateTime.weekday(.abbreviated).hour().minute())
     }
 }

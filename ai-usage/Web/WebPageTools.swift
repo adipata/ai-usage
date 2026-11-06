@@ -10,6 +10,16 @@ enum WebPageTools {
         return result as? String ?? ""
     }
 
+    /// True when the page shows a visible email or password field, i.e. a sign-in form.
+    static func hasLoginForm(_ page: WebPage) async -> Bool {
+        let script = """
+        return [...document.querySelectorAll('input[type=email], input[type=password], input[name=email]')]
+            .some(input => input.offsetParent !== null);
+        """
+        let result = try? await page.callJavaScript(script)
+        return result as? Bool ?? false
+    }
+
     /// The absolute URL of the first link whose visible text is `text` (case-insensitive).
     static func linkURL(withText text: String, in page: WebPage) async -> URL? {
         let script = """

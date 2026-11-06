@@ -71,6 +71,10 @@ final class ClaudeWebService {
                 let complete = latest.organizationCredits != nil
                     && latest.spendThisMonth != nil
                     && latest.tokenVolume != nil
+                // Signed-out visitors can get a login form without a "login" URL.
+                if latest.isEmpty, await WebPageTools.hasLoginForm(page) {
+                    throw FetchError.notSignedIn
+                }
                 return complete ? text : nil
             }
             lastRaw["platform dashboard"] = text

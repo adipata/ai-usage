@@ -76,7 +76,7 @@ enum ClaudeUsageParser {
     }
 
     /// ISO 8601 with optional fractional seconds of any length.
-    static func parseDate(_ string: String) -> Date? {
+    nonisolated static func parseDate(_ string: String) -> Date? {
         let trimmed = string.replacingOccurrences(of: #"\.\d+"#, with: "", options: .regularExpression)
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime]
@@ -114,7 +114,7 @@ enum ClaudeUsageParser {
         return lines[(index + 1)...].prefix(4).first(where: containsDigit)
     }
 
-    private static func containsDigit(_ string: String) -> Bool {
+    private nonisolated static func containsDigit(_ string: String) -> Bool {
         string.rangeOfCharacter(from: .decimalDigits) != nil
     }
 

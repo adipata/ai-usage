@@ -1,10 +1,13 @@
 import SwiftUI
+import Charts
 
 /// Compact dashboard card: claude.ai plan limits on top, platform.claude.com figures below.
 struct ClaudeCard: View {
     let claudeAI: SourceState<ClaudeAIUsage>
     let platform: SourceState<PlatformUsage>
     var onSignIn: (WebSite) -> Void = { _ in }
+
+    static let spendingURL = URL(string: "https://platform.claude.com/spending")!
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -13,77 +16,43 @@ struct ClaudeCard: View {
 
             SectionLabel("claude.ai")
             if let usage = claudeAI.value {
-                VStack(spacing: 6) {
-                    if let weekly = usage.weekly { LimitRow(limit: weekly) }
-                    ForEach(usage.modelLimits) { LimitRow(limit: $0) }
+                // Ticks every minute so the countdowns stay current without refetching.
+                TimelineView(.periodic(from: .now, by: 60)) { context in
+                    VStack(spacing: 6) {
+                        if let weekly = usage.weekly { LimitRow(limit: weekly, now: context.date) }
+                        ForEach(usage.modelLimits) { LimitRow(limit: $0, now: context.date) }
+                    }
                 }
             }
             SourceStatus(state: claudeAI, site: .claudeAI, onSignIn: onSignIn)
 
             Divider()
 
-            SectionLabel("Platform")
+            HStack {
+                SectionLabel("Platform")
+                Spacer()
+                Link(destination: Self.spendingURL) {
+                    Label("Spending", systemImage: "arrow.up.right")
+                        .labelStyle(TrailingIconLabelStyle())
+                }
+                .font(.caption2)
+            }
             if let usage = platform.value {
-                HStack(alignment: .top, spacing: 8) {
-                    StatTile(label: "Credits", value: usage.organizationCredits)
-                    StatTile(label: "Spend this month", value: usage.spendThisMonth)
-                    StatTile(label: "Tokens", value: usage.tokenVolume)
+                PlatformFigures(usage: usage)
+                if let keys = usage.keys, !keys.isEmpty {
+                    APIKeyList(keys: keys)
                 }
             }
             SourceStatus(state: platform, site: .claudePlatform, onSignIn: onSignIn)
         }
-        .padding(12)
-        .background(.background.secondary, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .providerCard()
     }
 }
 
-// MARK: - Reusable compact pieces (shared with future provider cards)
-
-struct CardHeader: View {
-    let title: String
-    let systemImage: String
-    let tint: Color
-    let updatedAt: Date?
-
-    var body: some View {
-        HStack(spacing: 6) {
-            Image(systemName: systemImage)
-                .foregroundStyle(tint)
-            Text(title)
-                .font(.headline)
-            Spacer()
-            if let updatedAt {
-                Text(updatedAt, format: .relative(presentation: .named))
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-        }
-    }
-}
-
-/// Bar colour shared by all cards: normal below 70%, orange below 90%, red above.
-func usageColor(percent: Double) -> Color {
-    switch percent {
-    case ..<70: .accentColor
-    case ..<90: .orange
-    default: .red
-    }
-}
-
-struct SectionLabel: View {
-    let text: String
-    init(_ text: String) { self.text = text }
-
-    var body: some View {
-        Text(text.uppercased())
-            .font(.caption2.weight(.semibold))
-            .foregroundStyle(.secondary)
-    }
-}
-
-/// One line: name, bar, percent, reset time.
+/// One line: name · bar · % · "Sat 7:00 PM" · countdown.
 struct LimitRow: View {
     let limit: UsageLimit
+    var now: Date = .now
 
     var body: some View {
         HStack(spacing: 8) {
@@ -91,84 +60,150 @@ struct LimitRow: View {
                 .font(.subheadline)
                 .lineLimit(1)
                 .frame(width: 78, alignment: .leading)
-            ProgressView(value: min(max(limit.percentUsed, 0), 100), total: 100)
-                .tint(usageColor(percent: limit.percentUsed))
+            UsageBar(percent: limit.percentUsed)
             Text("\(Int(limit.percentUsed.rounded()))%")
                 .font(.subheadline.monospacedDigit().weight(.semibold))
                 .frame(width: 40, alignment: .trailing)
-            Text(limit.resetsAt.map(Self.resetText) ?? "")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .frame(width: 64, alignment: .trailing)
-        }
-        .accessibilityElement(children: .combine)
-    }
-
-    /// "Sat 7:00 PM", matching how claude.ai shows resets.
-    nonisolated static func resetText(_ date: Date) -> String {
-        date.formatted(.dateTime.weekday(.abbreviated).hour().minute())
-    }
-}
-
-struct StatTile: View {
-    let label: String
-    let value: String?
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(label)
+            Text(limit.resetsAt.map(UsageFormat.resetLabel) ?? "")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
-            Text(value ?? "–")
-                .font(.subheadline.monospacedDigit().weight(.semibold))
+                .frame(width: 64, alignment: .trailing)
+            Text(UsageFormat.timeLeft(until: limit.resetsAt, now: now) ?? "")
+                .font(.caption2.monospacedDigit())
                 .lineLimit(1)
-                .minimumScaleFactor(0.7)
+                .minimumScaleFactor(0.8)
+                .frame(width: 50, alignment: .trailing)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
     }
 }
 
-/// Shows an error or sign-in prompt for one source, or nothing when everything is fine.
-struct SourceStatus<Value: Codable & Hashable>: View {
-    let state: SourceState<Value>
-    let site: WebSite
-    var onSignIn: (WebSite) -> Void
+/// Credits · Spend this month · Tokens (with the 7-day sparkline).
+private struct PlatformFigures: View {
+    let usage: PlatformUsage
 
     var body: some View {
-        if state.needsSignIn {
-            Button {
-                onSignIn(site)
-            } label: {
-                Label("Sign in to \(site.title)", systemImage: "person.crop.circle.badge.exclamationmark")
-                    .font(.caption)
+        HStack(alignment: .top, spacing: 8) {
+            StatTile(label: "Credits", value: usage.organizationCredits)
+            StatTile(label: "Spend this month", value: usage.spendThisMonth, caption: spendCaption)
+            StatTile(label: "Tokens", value: usage.tokenVolume, caption: tokenCaption) {
+                if let bars = usage.tokenBars, !bars.isEmpty {
+                    TokenSparkline(bars: bars)
+                }
             }
-            .buttonStyle(.borderless)
-        } else if let error = state.error {
-            Label(error, systemImage: "exclamationmark.triangle")
-                .font(.caption2)
-                .foregroundStyle(.orange)
-                .lineLimit(2)
-        } else if state.value == nil {
-            Text("Pull to refresh")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+        }
+    }
+
+    /// "of $60 · 3%"
+    private var spendCaption: String? {
+        let parts = [
+            usage.spendLimit.map { "of \($0)" },
+            usage.spendPercent.map { "\(Int($0.rounded()))%" },
+        ].compactMap { $0 }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    /// "7d · ↑136%"
+    private var tokenCaption: String? {
+        var parts: [String] = []
+        if let period = usage.tokenPeriod,
+           let days = period.split(separator: " ").compactMap({ Int($0) }).first {
+            parts.append("\(days)d")
+        }
+        if let trend = usage.tokenTrend {
+            let words = trend.split(separator: " ")
+            if words.count == 2 {
+                parts.append((words[0] == "Up" ? "↑" : "↓") + words[1] + "%")
+            }
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+}
+
+/// Seven daily bars, oldest first, scaled to the tallest. Shape only: the Console gives no per-day values.
+struct TokenSparkline: View {
+    let bars: [Double]
+
+    var body: some View {
+        let maximum = max(bars.max() ?? 0, 0.0001)
+        Chart(Array(bars.enumerated()), id: \.offset) { day in
+            BarMark(
+                x: .value("Day", day.offset),
+                y: .value("Tokens", day.element / maximum)
+            )
+            .foregroundStyle(.tint)
+        }
+        .chartXAxis(.hidden)
+        .chartYAxis(.hidden)
+        .chartYScale(domain: 0...1)
+        .chartLegend(.hidden)
+        .frame(width: 48, height: 18)
+        .accessibilityLabel("Token volume, last \(bars.count) days")
+    }
+}
+
+/// "Keys · this month": up to five keys by cost, then "+N more".
+private struct APIKeyList: View {
+    let keys: [APIKeyCost]
+    private let visible = 5
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            SectionLabel("Keys · this month")
+            ForEach(keys.prefix(visible)) { key in
+                HStack {
+                    Text(key.name).lineLimit(1)
+                    Spacer()
+                    Text(key.cost ?? "—").monospacedDigit()
+                        .foregroundStyle(key.cost == nil ? .secondary : .primary)
+                }
+                .font(.caption)
+            }
+            if keys.count > visible {
+                Text("+\(keys.count - visible) more")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+}
+
+/// "Spending ↗": text first, icon after.
+private struct TrailingIconLabelStyle: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 2) {
+            configuration.title
+            configuration.icon
         }
     }
 }
 
 #Preview {
+    let reset = Date.now.addingTimeInterval(81_170)
     ClaudeCard(
         claudeAI: SourceState(
             value: ClaudeAIUsage(
-                weekly: UsageLimit(key: "seven_day", title: "This week", percentUsed: 38, resetsAt: .now.addingTimeInterval(200_000)),
-                modelLimits: [UsageLimit(key: "seven_day_fable", title: "Fable", percentUsed: 21, resetsAt: .now.addingTimeInterval(200_000))]
+                weekly: UsageLimit(key: "weekly_all", title: "This week", percentUsed: 42, resetsAt: reset),
+                modelLimits: [UsageLimit(key: "weekly_scoped:fable", title: "Fable", percentUsed: 71, resetsAt: reset,
+                                         subtitle: "Up to 50% of your weekly limit")]
             ),
             fetchedAt: .now.addingTimeInterval(-120)
         ),
         platform: SourceState(
-            value: PlatformUsage(organizationCredits: "$42.10", spendThisMonth: "$7.84", tokenVolume: "1.2M"),
+            value: PlatformUsage(
+                organizationCredits: "$200.69", spendThisMonth: "$2.38", tokenVolume: "160.5K",
+                spendLimit: "$60", spendPercent: 3, spendResets: "Dec 1",
+                tokenTrend: "Up 136", tokenPeriod: "last 7 days",
+                tokenBars: [12.56, 21.61, 30.5, 21.87, 3.73, 8.90, 20.99],
+                keys: [
+                    APIKeyCost(name: "Koneko", scope: "Miau", cost: "$0.52"),
+                    APIKeyCost(name: "miau", scope: "Miau", cost: "$0.32"),
+                    APIKeyCost(name: "MacOS OpenCode", scope: "OpenCode", cost: "$0.15"),
+                    APIKeyCost(name: "coquelicot-goose", scope: "OpenCode", cost: nil),
+                ]
+            ),
             fetchedAt: .now
         )
     )

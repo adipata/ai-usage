@@ -38,6 +38,31 @@ final class UsageStore {
         await refreshMistral()
     }
 
+    /// Refetches when the data is older than 15 minutes or a reset time has passed
+    /// (otherwise a countdown would sit at "now"). Called when the app comes to the foreground.
+    func refreshIfStale(now: Date = .now) async {
+        let fetches: [Date?] = [claudeAI.fetchedAt, platform.fetchedAt, mistral.fetchedAt]
+        let fetched: [Date] = fetches.compactMap { $0 }
+        guard fetched.count == fetches.count, let oldest = fetched.min() else {
+            await refresh()
+            return
+        }
+
+        var resets: [Date] = []
+        if let usage = claudeAI.value {
+            if let reset = usage.weekly?.resetsAt { resets.append(reset) }
+            resets.append(contentsOf: usage.modelLimits.compactMap { $0.resetsAt })
+        }
+        if let usage = mistral.value {
+            resets.append(contentsOf: usage.allowances.compactMap { $0.resetsAt })
+        }
+
+        let isOld = now.timeIntervalSince(oldest) > 15 * 60
+        if isOld || resets.contains(where: { $0 <= now }) {
+            await refresh()
+        }
+    }
+
     func refreshClaudeAI() async {
         do {
             claudeAI = SourceState(value: try await claudeService.fetchClaudeAIUsage(), fetchedAt: .now)

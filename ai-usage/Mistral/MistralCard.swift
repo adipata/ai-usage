@@ -11,20 +11,27 @@ struct MistralCard: View {
 
             SectionLabel("Included monthly allowance")
             if let usage = state.value {
-                VStack(spacing: 6) {
-                    ForEach(usage.allowances) { AllowanceRow(allowance: $0) }
+                TimelineView(.periodic(from: .now, by: 60)) { context in
+                    VStack(spacing: 6) {
+                        ForEach(usage.allowances) { AllowanceRow(allowance: $0, now: context.date) }
+                    }
+                }
+                if let note = usage.missingNote {
+                    Text(note)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
                 }
             }
             SourceStatus(state: state, site: .mistral, onSignIn: onSignIn)
         }
-        .padding(12)
-        .background(.background.secondary, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .providerCard()
     }
 }
 
-/// One line: name, bar, "used / limit", reset.
+/// One line: name · bar · "used / limit" · reset ("in 24 days" over the "24d 4h" countdown).
 struct AllowanceRow: View {
     let allowance: Allowance
+    var now: Date = .now
 
     var body: some View {
         HStack(spacing: 8) {
@@ -32,28 +39,37 @@ struct AllowanceRow: View {
                 .font(.subheadline)
                 .lineLimit(1)
                 .frame(width: 78, alignment: .leading)
-            ProgressView(value: min(max(allowance.percentUsed ?? 0, 0), 100), total: 100)
-                .tint(usageColor(percent: allowance.percentUsed ?? 0))
+            UsageBar(percent: allowance.percentUsed ?? 0)
             Text("\(allowance.used) / \(allowance.limit)")
                 .font(.subheadline.monospacedDigit().weight(.semibold))
                 .lineLimit(1)
                 .fixedSize()
-            Text(allowance.resetText ?? "")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-                .frame(width: 64, alignment: .trailing)
+            // Stacked so the bar keeps its width: page text on top, countdown below.
+            VStack(alignment: .trailing, spacing: 0) {
+                Text(allowance.resetText ?? "")
+                    .foregroundStyle(.secondary)
+                if let countdown = UsageFormat.timeLeft(until: allowance.resetsAt, now: now) {
+                    Text(countdown)
+                        .monospacedDigit()
+                }
+            }
+            .font(.caption2)
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
+            .frame(width: 64, alignment: .trailing)
         }
         .accessibilityElement(children: .combine)
     }
 }
 
 #Preview {
+    let reset = MistralUsageParser.nextMonthlyReset(after: .now)
     MistralCard(state: SourceState(
         value: MistralUsage(
-            api: Allowance(title: "API", used: "€0.1", limit: "€25.5", usedValue: 0.1, limitValue: 25.5, resetText: "in 25 days"),
-            vibeCode: Allowance(title: "Vibe Code", used: "€1.5", limit: "€255", usedValue: 1.5, limitValue: 255, resetText: "in 25 days")
+            api: Allowance(title: "API", used: "€0.1", limit: "€25.5", usedValue: 0.1, limitValue: 25.5,
+                           resetText: "in 24 days", resetsAt: reset, barPercent: 0.4),
+            vibeCode: Allowance(title: "Vibe Code", used: "€4.02", limit: "€255", usedValue: 4.02, limitValue: 255,
+                                resetText: "in 24 days", resetsAt: reset, barPercent: 1.58)
         ),
         fetchedAt: .now
     ))

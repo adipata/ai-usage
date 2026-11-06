@@ -12,11 +12,16 @@ struct Allowance: Codable, Hashable, Identifiable {
     let limitValue: Double?
     /// e.g. "in 25 days".
     let resetText: String?
+    /// Next reset (00:00 on the 1st of next month, Europe/Paris), only when it agrees with
+    /// the page's "in N days". Optional so older cached JSON still decodes.
+    var resetsAt: Date? = nil
+    /// Percent read from the page's progress bar (cross-check / fallback only).
+    var barPercent: Double? = nil
 
-    /// 0...100 when both amounts could be parsed.
+    /// used ÷ limit (0...100), falling back to the page's bar when an amount fails to parse.
     var percentUsed: Double? {
-        guard let usedValue, let limitValue, limitValue > 0 else { return nil }
-        return usedValue / limitValue * 100
+        if let usedValue, let limitValue, limitValue > 0 { return usedValue / limitValue * 100 }
+        return barPercent
     }
 }
 
@@ -26,4 +31,13 @@ struct MistralUsage: Codable, Hashable {
 
     var isEmpty: Bool { api == nil && vibeCode == nil }
     var allowances: [Allowance] { [api, vibeCode].compactMap { $0 } }
+
+    /// Note shown on the card when only one allowance was found (e.g. a plan without it).
+    var missingNote: String? {
+        switch (api, vibeCode) {
+        case (nil, .some): "API allowance not found"
+        case (.some, nil): "Vibe Code allowance not found"
+        default: nil
+        }
+    }
 }

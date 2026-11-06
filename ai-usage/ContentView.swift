@@ -5,6 +5,7 @@ struct ContentView: View {
     @Environment(UsageStore.self) private var store
     @State private var loginSite: WebSite?
     @State private var showingSettings = false
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         NavigationStack {
@@ -47,6 +48,9 @@ struct ContentView: View {
             ])
         }
         .task { await store.refresh() }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { Task { await store.refreshIfStale() } }
+        }
         .sheet(item: $loginSite) { site in
             WebLoginSheet(site: site) {
                 Task { await store.refresh() }

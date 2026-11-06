@@ -1,6 +1,6 @@
 # AI Usage — iOS Dashboard Spec
 
-Status: Draft v0.3 (2026-11-05): OpenAI dropped, Claude (§8) and Mistral (§9) implemented
+Status: Draft v0.4 (2026-11-06): OpenAI dropped. Claude (§8) and Mistral (§9) implemented, revised per the "Claude Card — Usage Page Extraction Guide" doc (§10)
 Owner: Adrian Pata
 
 ## 1. Goal
@@ -209,8 +209,8 @@ One adapter per row group in §2.1. Each adapter decodes into private DTOs, then
 - `Settings/AccountsView.swift`: accounts and diagnostics
 
 **Open questions for Claude:**
-19. The claude.ai Usage page shows "Up to 50% of your weekly limit" under Fable. Is that a fixed cap description (static text), or a figure that changes? The usage JSON may not contain it. If it matters, scrape it from `claude.ai/settings/usage`.
-20. Is the Fable bucket key really `seven_day_<model>`? Check the raw response in Diagnostics on first run. The parser picks up any `seven_day_*` key.
+19. ~~Resolved~~: it comes from `weekly_scoped_shares[].allowance_percent_of_weekly` and is stored as the limit's `subtitle`. The claude.ai Usage page shows "Up to 50% of your weekly limit" under Fable. Is that a fixed cap description (static text), or a figure that changes? The usage JSON may not contain it. If it matters, scrape it from `claude.ai/settings/usage`.
+20. ~~Resolved~~: no. Fable is a `weekly_scoped` entry in `limits[]`. Is the Fable bucket key really `seven_day_<model>`? Check the raw response in Diagnostics on first run. The parser picks up any `seven_day_*` key.
 21. Is scraping the platform dashboard text acceptable, or should spend and tokens come from the official Admin API (cost report / usage report) using an Admin key? That would be more robust, but the credit balance would still need the dashboard.
 22. If you belong to several platform organizations, which one should be shown? Currently it is whichever the dashboard opens by default.
 23. Should the current 5‑hour session also be shown? It is already parsed.
@@ -228,7 +228,31 @@ One adapter per row group in §2.1. Each adapter decodes into private DTOs, then
 - Files: `ai-usage/Mistral/` (models, parser, service, card). Shared web helpers are in `ai-usage/Web/WebPageTools.swift`.
 
 **Open questions for Mistral:**
-24. What is the real URL of the Subscription page? Replace the guess once it's known.
+24. ~~Resolved~~: `https://admin.mistral.ai/subscription`. What is the real URL of the Subscription page? Replace the guess once it's known.
 25. Can sign-in finish inside the app's web view? (For example, if it uses Google or a passkey, or a magic link that opens in Safari.)
 26. Is "Resets in 25 days" enough, or should the card show a date ("1 Dec")? It's always the 1st of next month, so it could be computed.
+
+## 10. Revision per the extraction guide (2026-11-06)
+
+This section supersedes the data-source details in §8 and §9.
+
+**claude.ai**
+- Primary source: `limits[]` in `/api/organizations/{org}/usage`. `weekly_all` gives "This week"; each `weekly_scoped` gives a model row (title from `scope.model.display_name`), kept in claude.ai's order. `weekly_scoped_shares` supplies the subtitle ("Up to 50% of your weekly limit").
+- Falls back to the legacy `seven_day*` buckets when `limits` is missing. When the JSON breaks entirely, it falls back to the Usage modal's DOM (`claude.ai/new#settings/usage`, `[data-testid="pace-week"]` meters). In that case the reset comes from "Resets Saturday 7:00 PM" and is approximate (±1 min).
+- Every row shows the absolute reset ("Sat 7:00 PM") next to a countdown ("22h 32m", rounded down). The countdown is computed in the view, refreshed every minute by a `TimelineView`, and never stored.
+
+**platform.claude.com**
+- Dashboard: one script reads each `[data-cds="Card"]`, found by its title link's href (`/settings/billing`, `/cost…`, an exact `/usage`). Output: credits, spend plus limit, % and reset, tokens plus trend and period, and the 7 sparkline bar heights.
+- Keys: a script reads `/settings/keys`, finding columns by header text. The key name comes from the row button's aria-label, and the masked secret is never read. Each key shows its month-to-date cost, sorted by cost, top 5 plus "+N more". If the keys page fails, the dashboard figures are still shown.
+- The section header has a "Spending ↗" link to `platform.claude.com/spending`, which opens in Safari.
+
+**Mistral**
+- Loads `https://admin.mistral.ai/subscription` directly. If needed, follows the `a[href="/subscription"]` nav link as a fallback.
+- A block-scoped script finds each allowance by its heading text, climbs to the block, and reads the two amounts, the "Resets in N days" line and the progress-bar percent.
+- Countdown to 00:00 on the 1st of next month, Europe/Paris (an assumption). It is shown only when its whole days match the page's "in N days" (±1).
+
+**Other**
+- The app refetches when it comes to the foreground and the data is older than 15 minutes or a reset time has passed.
+- All scripts live in `Claude/ClaudeScripts.swift` and `Mistral/MistralScripts.swift`. Shared UI pieces are in `Dashboard/CardComponents.swift`, and formatting in `Dashboard/UsageFormat.swift`.
+- Unit tests live in `ai-usageTests/` (Swift Testing; fixtures from the guide). To run them, add a Unit Testing Bundle target named `ai-usageTests` in Xcode, with that folder as its source, hosted by the `ai-usage` app.
 

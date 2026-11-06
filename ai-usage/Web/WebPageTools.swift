@@ -20,6 +20,24 @@ enum WebPageTools {
         return result as? Bool ?? false
     }
 
+    /// Runs a script that returns a string (JSON, or '' when the page is not ready).
+    /// Returns "" when the script throws or the page is still navigating.
+    static func run(_ script: String, in page: WebPage) async -> String {
+        let result = try? await page.callJavaScript(script)
+        return result as? String ?? ""
+    }
+
+    /// The absolute URL of the first element matching a CSS selector that has an href, e.g. `a[href="/subscription"]`.
+    static func linkURL(matching selector: String, in page: WebPage) async -> URL? {
+        let script = """
+        const link = document.querySelector(selector);
+        return link && link.href ? link.href : '';
+        """
+        let result = try? await page.callJavaScript(script, arguments: ["selector": selector])
+        guard let href = result as? String, !href.isEmpty else { return nil }
+        return URL(string: href)
+    }
+
     /// The absolute URL of the first link whose visible text is `text` (case-insensitive).
     static func linkURL(withText text: String, in page: WebPage) async -> URL? {
         let script = """

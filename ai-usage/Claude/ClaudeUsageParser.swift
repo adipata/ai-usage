@@ -277,6 +277,8 @@ enum ClaudeUsageParser {
             throw FetchError.unexpectedResponse(snippet(text))
         }
         return dto.keys
+            // Placeholder rows the Console shows while the table loads.
+            .filter { !$0.name.lowercased().hasPrefix("loading") }
             .map { APIKeyCost(name: $0.name, scope: $0.scope, cost: $0.cost) }
             .enumerated()
             .sorted { lhs, rhs in

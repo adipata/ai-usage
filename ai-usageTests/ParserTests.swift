@@ -113,6 +113,13 @@ struct PlatformTests {
         #expect(keys.last?.cost == nil)
     }
 
+    @Test func keysDropLoadingPlaceholders() throws {
+        let json = #"{"keys":[{"name":"Loading","scope":null,"cost":null},"#
+            + #"{"name":"Koneko","scope":"Miau","cost":"$0.52"},{"name":"Loading…","scope":null,"cost":null}]}"#
+        let keys = try ClaudeUsageParser.apiKeys(fromKeysJSON: json)
+        #expect(keys.map(\.name) == ["Koneko"])
+    }
+
     @Test func oldCacheStillDecodes() throws {
         let usage = try JSONDecoder().decode(PlatformUsage.self, from: Data(Fixtures.cachedPlatformV1.utf8))
         #expect(usage.organizationCredits == "$42.10")

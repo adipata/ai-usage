@@ -76,7 +76,13 @@ enum PlatformScripts {
     const heads = [...table.querySelectorAll('thead th')].map(h => h.innerText.trim().split('\n')[0]);
     const col = name => heads.findIndex(h => h === name);
     const [iKey, iScope, iCost] = [col('Key'), col('Scope'), col('Cost')];
-    const rows = [...table.querySelectorAll('tbody tr')].map(r => {
+    // While loading, the table shows ~20 placeholder rows reading "Loading": wait until they are gone.
+    const isLoading = s => /^Loading\b/i.test((s ?? '').trim());
+    const trs = [...table.querySelectorAll('tbody tr')];
+    if (table.closest('[aria-busy="true"]') ||
+        trs.some(r => r.getAttribute('aria-busy') === 'true' || isLoading(r.innerText) ||
+                      isLoading(r.querySelector('button[aria-label]')?.getAttribute('aria-label')))) return '';
+    const rows = trs.map(r => {
       const nameCell = r.cells[iKey];
       const name = (nameCell?.querySelector('button[aria-label]')?.getAttribute('aria-label')
                 || nameCell?.innerText.split('\n').map(s => s.trim()).find(Boolean) || '').trim();

@@ -36,7 +36,7 @@ struct MistralUsage: Codable, Hashable {
     var missingNote: String? {
         switch (api, vibeCode) {
         case (nil, .some): "API allowance not found"
-        case (.some, nil): "Vibe Code allowance not found"
+        case (.some, nil): "Vibe & Studio allowance not found"
         default: nil
         }
     }

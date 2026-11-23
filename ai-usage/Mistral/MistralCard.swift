@@ -38,6 +38,7 @@ struct AllowanceRow: View {
             Text(allowance.title)
                 .font(.subheadline)
                 .lineLimit(1)
+                .minimumScaleFactor(0.75)
                 .frame(width: 78, alignment: .leading)
             UsageBar(percent: allowance.percentUsed ?? 0)
             Text("\(allowance.used) / \(allowance.limit)")
@@ -68,8 +69,8 @@ struct AllowanceRow: View {
         value: MistralUsage(
             api: Allowance(title: "API", used: "€0.1", limit: "€25.5", usedValue: 0.1, limitValue: 25.5,
                            resetText: "in 24 days", resetsAt: reset, barPercent: 0.4),
-            vibeCode: Allowance(title: "Vibe Code", used: "€4.02", limit: "€255", usedValue: 4.02, limitValue: 255,
-                                resetText: "in 24 days", resetsAt: reset, barPercent: 1.58)
+            vibeCode: Allowance(title: "Vibe & Studio", used: "€28.36", limit: "€255", usedValue: 28.36, limitValue: 255,
+                                resetText: "in 7 days", resetsAt: reset, barPercent: 11.12)
         ),
         fetchedAt: .now
     ))

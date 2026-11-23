@@ -256,3 +256,11 @@ This section supersedes the data-source details in §8 and §9.
 - All scripts live in `Claude/ClaudeScripts.swift` and `Mistral/MistralScripts.swift`. Shared UI pieces are in `Dashboard/CardComponents.swift`, and formatting in `Dashboard/UsageFormat.swift`.
 - Unit tests live in `ai-usageTests/` (Swift Testing; fixtures from the guide). To run them, add a Unit Testing Bundle target named `ai-usageTests` in Xcode, with that folder as its source, hosted by the `ai-usage` app.
 
+### 10.1 Mistral heading rename (2026-11-23)
+
+Mistral renamed "Included Vibe Code usage" to **"Included Vibe & Studio usage"** (Studio now counts toward that allowance), so the exact-text lookup stopped finding it. Diagnosed with the agent prompt in `prompts/mistral-subscription-analysis.md`.
+
+- Headings are now matched by pattern in both the script and the plain-text fallback: at most 60 characters, starting with "Included", ending with "usage". The API row matches `API`; the other row matches `vibe` or `code`. This skips the description paragraphs and the "Pay-as-you-go for Vibe & Studio" section.
+- The row is titled "Vibe & Studio". The JSON key stays `vibeCode`, so cached data still decodes.
+- If the page changes again, rerun the agent prompt and paste its report.
+

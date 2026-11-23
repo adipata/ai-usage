@@ -156,6 +156,42 @@ struct MistralTests {
         #expect(usage.missingNote == "API allowance not found")
     }
 
+    @Test func vibeStudioRename() throws {
+        let usage = try MistralUsageParser.usage(fromJSON: Fixtures.mistralVibeStudio, now: Fixtures.now)
+        let vibe = try #require(usage.vibeCode)
+        #expect(vibe.title == "Vibe & Studio")
+        #expect(vibe.used == "€28.40")
+        #expect(vibe.limit == "€255")
+        #expect(abs((vibe.percentUsed ?? 0) - 11.14) < 0.01)
+        #expect(usage.missingNote == nil)
+    }
+
+    @Test func headingPatterns() {
+        #expect(MistralUsageParser.isAPIHeading("Included API usage"))
+        #expect(!MistralUsageParser.isAPIHeading("Included Vibe & Studio usage"))
+
+        for heading in ["Included Vibe & Studio usage", "Included Vibe Code usage", "Included Vibe usage",
+                        "INCLUDED VIBE & STUDIO USAGE", "Included Code usage"] {
+            #expect(MistralUsageParser.isVibeHeading(heading), "\(heading)")
+        }
+        // Description paragraphs, the pay-as-you-go section and the API heading must not match.
+        for other in ["Included allowance for Vibe & Studio. Resets on the first day of each calendar month",
+                      "Pay-as-you-go for Vibe & Studio", "Included API usage", "Included monthly allowance"] {
+            #expect(!MistralUsageParser.isVibeHeading(other), "\(other)")
+        }
+    }
+
+    @Test func pageTextFallbackAfterRename() throws {
+        let usage = MistralUsageParser.usage(fromPageText: Fixtures.mistralPageTextVibeStudio, now: Fixtures.now)
+        let api = try #require(usage.api)
+        let vibe = try #require(usage.vibeCode)
+        #expect(api.used == "€0.22")
+        #expect(api.limit == "€25.5")
+        #expect(vibe.used == "€28.36")
+        #expect(vibe.limit == "€255")
+        #expect(vibe.resetText == "in 7 days")
+    }
+
     @Test func nextMonthlyReset() {
         let reset = MistralUsageParser.nextMonthlyReset(after: Fixtures.now, timeZone: Fixtures.paris)
         #expect(reset == Fixtures.date("2026-11-30T23:00:00Z"))

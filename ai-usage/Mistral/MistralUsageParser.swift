@@ -2,8 +2,21 @@ import Foundation
 
 /// Parses the included monthly allowances from admin.mistral.ai → Subscription.
 enum MistralUsageParser {
-    static let apiLabel = "Included API usage"
-    static let vibeCodeLabel = "Included Vibe Code usage"
+    /// Row title for the `vibeCode` allowance, matching the page's "Included Vibe & Studio usage".
+    static let vibeTitle = "Vibe & Studio"
+
+    /// Allowance headings, matched by pattern because Mistral renames them
+    /// ("Included Vibe Code usage" → "Included Vibe & Studio usage", Nov 2026).
+    /// Same rules as the script: short, starts with "Included", ends with "usage".
+    nonisolated static func isAPIHeading(_ line: String) -> Bool {
+        line.count <= 60 && line.range(of: #"^Included\s+API\b.*\busage$"#,
+                                       options: [.regularExpression, .caseInsensitive]) != nil
+    }
+
+    nonisolated static func isVibeHeading(_ line: String) -> Bool {
+        line.count <= 60 && line.range(of: #"^Included\s+(?!API\b).*\b(vibe|code)\b.*\busage$"#,
+                                       options: [.regularExpression, .caseInsensitive]) != nil
+    }
 
     /// Mistral doesn't say which time zone the monthly reset uses; Paris is an assumption.
     nonisolated static let resetTimeZone = TimeZone(identifier: "Europe/Paris")!
@@ -28,7 +41,7 @@ enum MistralUsageParser {
         }
         return MistralUsage(
             api: output.api.flatMap { allowance(from: $0, title: "API", now: now) },
-            vibeCode: output.vibeCode.flatMap { allowance(from: $0, title: "Vibe Code", now: now) }
+            vibeCode: output.vibeCode.flatMap { allowance(from: $0, title: vibeTitle, now: now) }
         )
     }
 
@@ -85,21 +98,20 @@ enum MistralUsageParser {
             .components(separatedBy: .newlines)
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
-        let labels = [apiLabel, vibeCodeLabel]
         return MistralUsage(
-            api: allowance(label: apiLabel, title: "API", stopAt: labels, in: lines, now: now),
-            vibeCode: allowance(label: vibeCodeLabel, title: "Vibe Code", stopAt: labels, in: lines, now: now)
+            api: allowance(heading: isAPIHeading, title: "API", in: lines, now: now),
+            vibeCode: allowance(heading: isVibeHeading, title: vibeTitle, in: lines, now: now)
         )
     }
 
-    static func allowance(label: String, title: String, stopAt labels: [String], in lines: [String], now: Date) -> Allowance? {
-        guard let start = lines.firstIndex(where: { $0.lowercased() == label.lowercased() }) else { return nil }
+    static func allowance(heading isHeading: (String) -> Bool, title: String, in lines: [String], now: Date) -> Allowance? {
+        guard let start = lines.firstIndex(where: isHeading) else { return nil }
 
         var amounts: [String] = []
         var reset: String?
         for line in lines[(start + 1)...].prefix(10) {
             let lowered = line.lowercased()
-            if labels.contains(where: { $0.lowercased() == lowered }) { break }
+            if isAPIHeading(line) || isVibeHeading(line) { break }
             // Only "Resets in …" is the countdown; the description also says "Resets on the first day…".
             if lowered.hasPrefix("resets in ") {
                 reset = line

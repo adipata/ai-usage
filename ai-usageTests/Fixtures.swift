@@ -84,6 +84,27 @@ enum Fixtures {
     "vibeCode":{"used":"€4.02","limit":"€255","reset":"Resets in 24 days","barPercent":1.58}}
     """
 
+    /// Script output after the heading became "Included Vibe & Studio usage" (23 Nov 2026).
+    static let mistralVibeStudio = #"{"api":{"used":"€0.20","limit":"€25.5","reset":"Resets in 7 days","barPercent":0.8},"vibeCode":{"used":"€28.40","limit":"€255","reset":"Resets in 7 days","barPercent":11.1}}"#
+
+    /// `document.body.innerText` of the Subscription page, 23 Nov 2026 (for the text fallback).
+    static let mistralPageTextVibeStudio = """
+    Subscription
+    INCLUDED MONTHLY ALLOWANCE
+    Included API usage
+    Included allowance for API/Studio usage. Resets on the first day of each calendar month, independently of your subscription renewal.
+    €0.22
+    €25.5
+    Resets in 7 days
+    Included Vibe & Studio usage
+    Included allowance for Vibe & Studio. Resets on the first day of each calendar month, independently of your subscription renewal.
+    €28.36
+    €255
+    Resets in 7 days
+    Pay-as-you-go for Vibe & Studio
+    €12.00
+    """
+
     static let mistralNoAPI = """
     {"api":null,"vibeCode":{"used":"€4.02","limit":"€255","reset":"Resets in 24 days","barPercent":1.58}}
     """
